@@ -30,3 +30,17 @@ export const authorizeTeacher = (req, res, next) => {
     return res.status(403).json({ success: false, message: 'Teacher role required' });
   }
 };
+
+
+export const authorizeAdmin = (req, res, next) => {
+  // নিশ্চিত করুন যে req.user এর ভেতরে role আছে (এটি protect মিডলওয়্যার থেকে আসে)
+  if (req.user && req.user.role === 'Maintance') {
+    next(); // ইউজার অ্যাডমিন, তাই তাকে পরের রাউটে যেতে দিন
+  } else {
+    // ইউজার অ্যাডমিন নয়, তাই অ্যাক্সেস অস্বীকার করুন
+    res.status(403).json({ 
+      success: false, 
+      message: "Access Denied: Only Admins can perform this action." 
+    });
+  }
+};

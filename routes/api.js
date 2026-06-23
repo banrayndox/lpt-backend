@@ -4,8 +4,8 @@ const router = express.Router();
 import * as authController from '../controllers/AuthController.js';
 import * as userController from '../controllers/UserController.js';
 import * as adminController from '../controllers/AdminController.js';
-
-import { protect, authorizeTeacher } from '../middlewares/checkAuth.js';
+import { getAllUsers, updateUserRole, deleteUser, resetAllSystem } from '../controllers/MaintanceController.js';
+import { protect, authorizeTeacher, authorizeAdmin } from '../middlewares/checkAuth.js';
 
 router.post('/auth/google', authController.googleLogin);
 router.get('/auth/me', protect, authController.getMe);
@@ -21,5 +21,8 @@ router.delete('/admin/users/:id', protect, authorizeTeacher, adminController.rem
 router.post('/admin/token/regenerate', protect, authorizeTeacher, adminController.regenerateJoinToken);
 router.post('/admin/danger/clear', protect, authorizeTeacher, adminController.clearSection);
 
-
+router.get('/users', protect, authorizeAdmin, getAllUsers);
+router.patch('/users/:id/role', protect, authorizeAdmin, updateUserRole);
+router.delete('/users/:id', protect, authorizeAdmin, deleteUser);
+router.post('/reset-all', protect, authorizeAdmin, resetAllSystem);
 export default router;

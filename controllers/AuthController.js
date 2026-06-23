@@ -3,40 +3,68 @@ import axios from 'axios';
 // ES Modules-এ লোকাল ফাইল ইম্পোর্ট করার সময় শেষে .js দেওয়া বাধ্যতামূলক
 import User from '../schemas/UserSchema.js';
 
-// ১. Google OAuth Login / Register (Custom Button / Access Token Friendly)
 export const googleLogin = async (req, res) => {
-  const { idToken } = req.body; // ফ্রন্টএন্ড থেকে আসা টোকেনটি এখানে রিসিভ হচ্ছে
+  const { idToken } = req.body;
+  
+  // ১. ইনপুট চেক
+  console.log("--- DEBUG START: Google Login ---");
+  console.log("Received idToken:", idToken ? "Token present" : "Token missing");
+
+  if (!idToken) {
+    return res.status(400).json({ success: false, message: 'Token is missing' });
+  }
 
   try {
-    // 🔄 গুগলের অফিশিয়াল ইউজারইনহো এন্ডপয়েন্ট থেকে ডেটা আনা হচ্ছে
-    // এটি ফ্রন্টএন্ডের কাস্টম বাটন (useGoogleLogin) থেকে আসা access_token কে নিখুঁতভাবে ভেরিফাই করে
+    // ২. গুগল থেকে ডেটা আনা
+    console.log("Fetching user profile from Google...");
     const googleRes = await axios.get(`https://www.googleapis.com/oauth2/v3/userinfo?access_token=${idToken}`);
+    console.log("Google API Response Data:", googleRes.data);
     
-    // গুগল রেসপন্স থেকে sub (যা আমাদের googleId), name এবং email বের করা হলো
     const { sub: googleId, name, email } = googleRes.data;
 
     if (!googleId) {
-      return res.status(400).json({ success: false, message: 'Invalid token data from Google' });
+      console.error("Error: No googleId found in response");
+      return res.status(400).json({ success: false, message: 'Invalid Google token' });
     }
 
-    // ডেটাবেজে চেক করা এই ইউজার আগে থেকেই আছে কিনা
+    // ৩. ডাটাবেসে ইউজার খোঁজা
+    console.log("Checking if user exists in MongoDB...");
     let user = await User.findOne({ googleId });
 
     if (!user) {
-      // ডেটাবেজের প্রথম ইউজার স্বয়ংক্রিয়ভাবে 'Teacher' (Admin) রোল পাবেন
-      const isFirstUser = (await User.countDocuments({})) === 0;
+      console.log("User not found, preparing to create new user...");
       
-      user = await User.create({
-        googleId,
-        name,
-        email,
-        role: isFirstUser ? 'Teacher' : 'Student'
-      });
+      // ৪. প্রথম ইউজার কি না চেক করা
+      const userCount = await User.countDocuments({});
+      const isFirstUser = userCount === 0;
+      console.log("Current user count in DB:", userCount, "| Is First User:", isFirstUser);
+
+      // ৫. ইউজার তৈরি করা
+      try {
+        user = await User.create({
+          googleId,
+          name,
+          email,
+          role: isFirstUser ? 'Maintance' : 'Student'
+        });
+        console.log("User created successfully in DB:", user._id);
+      } catch (dbError) {
+        console.error("DB Create Error (Check Schema constraints):", dbError.message);
+        throw dbError; // এটি ক্যাচ ব্লকে পাঠাবে
+      }
+    } else {
+      console.log("Existing user found:", user._id, "Role:", user.role);
     }
 
-    // JWT টোকেন জেনারেট করা (৩০ দিন মেয়াদী)
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '30d' });
+    // ৬. JWT টোকেন জেনারেট করা
+    const token = jwt.sign(
+      { id: user._id }, 
+      process.env.JWT_SECRET, 
+      { expiresIn: '30d' }
+    );
+    console.log("JWT token generated.");
 
+    // ৭. রেসপন্স পাঠানো
     res.status(200).json({
       success: true,
       token,
@@ -48,12 +76,18 @@ export const googleLogin = async (req, res) => {
         scores: user.scores
       }
     });
+    console.log("--- DEBUG END: Success ---");
+
   } catch (error) {
-    console.error('Google Server Login Error:', error.response?.data || error.message);
-    res.status(400).json({ 
+    // ডিবাগিং এরর হ্যান্ডলিং
+    console.error("--- DEBUG ERROR BLOCK ---");
+    console.error("Final Error Message:", error.message);
+    
+    res.status(500).json({ 
       success: false, 
       message: 'Google login failed', 
-      error: error.response?.data?.error_description || error.message 
+      debug: error.message, // ডিবাগিংয়ের সুবিধার্থে এরর পাঠানো হচ্ছে
+      error: error.response?.data || 'Internal Server Error' 
     });
   }
 };
