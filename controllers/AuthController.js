@@ -28,7 +28,7 @@ export const googleLogin = async (req, res) => {
         name,
         email,
         role: isFirstUser ? 'Maintance' : 'Student',
-        sectionId: null // শুরুতে কোনো সেকশন নেই
+        sectionId: null 
       });
     }
 
@@ -46,7 +46,7 @@ export const googleLogin = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
-        sectionId: user.sectionId // এখন সেকশন আইডি পাঠাচ্ছি
+        sectionId: user.sectionId 
       }
     });
 

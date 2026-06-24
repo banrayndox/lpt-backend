@@ -1,8 +1,8 @@
 import jwt from 'jsonwebtoken';
-// ES Modules-এ লোকাল ফাইল ইম্পোর্ট করার সময় শেষে .js দেওয়া বাধ্যতামূলক
+
 import {User}  from '../schemas/UserSchema.js';
 
-// ১. প্রটেক্ট মিডলওয়্যার (Token Verification)
+
 export const protect = async (req, res, next) => {
   let token;
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
@@ -22,7 +22,7 @@ export const protect = async (req, res, next) => {
   }
 };
 
-// ২. রোল অথরাইজেশন মিডলওয়্যার (Role Check)
+
 export const authorizeTeacher = (req, res, next) => {
   if (req.user && req.user.role === 'Teacher') {
     next();
@@ -33,11 +33,11 @@ export const authorizeTeacher = (req, res, next) => {
 
 
 export const authorizeAdmin = (req, res, next) => {
-  // নিশ্চিত করুন যে req.user এর ভেতরে role আছে (এটি protect মিডলওয়্যার থেকে আসে)
+
   if (req.user && req.user.role === 'Maintance') {
-    next(); // ইউজার অ্যাডমিন, তাই তাকে পরের রাউটে যেতে দিন
+    next();
   } else {
-    // ইউজার অ্যাডমিন নয়, তাই অ্যাক্সেস অস্বীকার করুন
+
     res.status(403).json({ 
       success: false, 
       message: "Access Denied: Only Admins can perform this action." 
