@@ -1,87 +1,81 @@
-
-import User from "../schemas/UserSchema.js";
+import { User, Section, Lab, Score } from "../schemas/UserSchema.js"; // নতুন মডেলে ইমপোর্ট করুন
 
 export const joinSectionByToken = async (req, res) => {
   const { joinToken } = req.body;
 
   try {
-    // ১. টোকেন দিয়ে টিচার খুঁজুন
-    const teacher = await User.findOne({ role: 'Teacher', joinToken: joinToken });
-    if (!teacher) {
+    // ১. টোকেন দিয়ে সেকশন খুঁজুন
+    const section = await Section.findOne({ joinToken });
+    if (!section) {
       return res.status(400).json({ success: false, message: 'Invalid join token' });
     }
 
-    // ২. স্টুডেন্টকে ডাটাবেজ থেকে খুঁজে বের করুন
-    const student = await User.findById(req.user.id);
-    if (!student) return res.status(404).json({ success: false, message: 'Student not found' });
+    // ২. স্টুডেন্টকে আপডেট করুন
+    const student = await User.findByIdAndUpdate(
+      req.user.id,
+      { sectionId: section._id },
+      { new: true }
+    );
 
-    // ৩. স্টুডেন্টের প্রোফাইলে টিচারের আইডি সেট করুন (এটিই সেকশন জয়েন হিসেবে কাজ করবে)
-    student.teacherId = teacher._id; 
-
-    // ৪. ল্যাব স্কোর ইনিশিয়ালাইজ করুন
-    teacher.labs.forEach(lab => {
-      const labId = String(lab.id); 
-      if (!student.scores.has(labId)) {
-        student.scores.set(labId, 0);
-      }
-    });
-
-    await student.save();
+    // ৩. ঐ সেকশনের সব ল্যাবগুলোর জন্য জিরো স্কোর এন্ট্রি তৈরি করুন
+    const sectionLabs = await Lab.find({ sectionId: section._id });
+    for (const lab of sectionLabs) {
+      await Score.findOneAndUpdate(
+        { studentId: student._id, labId: lab._id },
+        { score: 0 },
+        { upsert: true }
+      );
+    }
 
     res.status(200).json({ success: true, message: 'Successfully joined section' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
-// UserController.js
+
+
 export const getDashboardData = async (req, res) => {
   try {
-    // ১. লগইন করা স্টুডেন্টকে খুঁজে বের করুন
-    const student = await User.findById(req.user.id);
-    // ২. টিচারকে খুঁজে বের করুন (ল্যাবের লিস্ট পাওয়ার জন্য)
-    const teacher = await User.findOne({ role: 'Teacher' });
+    const student = await User.findById(req.user.id).populate('sectionId');
+    if (!student.sectionId) return res.status(400).json({ message: "No section joined" });
+
+    // ১. সেকশনের সব ল্যাব আনুন
+    const labsList = await Lab.find({ sectionId: student.sectionId._id });
     
-    const labsList = teacher ? teacher.labs : [];
-    const totalPossibleProblems = labsList.reduce((sum, l) => sum + (l.totalProblems || 0), 0);
+    // ২. স্টুডেন্টের সব স্কোর আনুন
+    const userScores = await Score.find({ studentId: student._id });
 
-    // ৩. স্টুডেন্টের ল্যাব হিস্ট্রি ম্যাপ করা (নিজের স্কোর দেখার জন্য)
-
-// ম্যাপের ভেতরে লুপের সময়
-const user_labs = labsList.map(lab => {
-  const labId = String(lab.id); 
-  const score = student.scores.get(labId) || 0; 
-  
-  return {
-    labId: { 
-      title: lab.title, 
-      date: lab.date,
-      totalProblems: lab.totalProblems // এখানে টোটাল প্রবলেম যুক্ত করা হলো
-    },
-    score: score // স্টুডেন্ট কয়টি সলভ করেছে
-  };
-});
-
-    // ৪. স্টুডেন্টের মোট সলভড প্রবলেম বের করা
-    let totalSolved = 0;
-    student.scores.forEach((val) => { totalSolved += val; });
-
-    // ৫. লিডারবোর্ড (আগের মতোই)
-    const allStudents = await User.find({ role: 'Student' });
-    const leaderboard = allStudents.map(s => {
-      let sTotal = 0;
-      s.scores.forEach((val) => { sTotal += val; });
+    // ৩. ল্যাব এবং স্কোরের ম্যাপ তৈরি
+    const user_labs = labsList.map(lab => {
+      const scoreObj = userScores.find(s => s.labId.toString() === lab._id.toString());
       return {
-        userId: { _id: s._id, name: s.name },
-        solved_problems: sTotal
+        lab: lab,
+        score: scoreObj ? scoreObj.score : 0
       };
+    });
+
+    // ৪. স্টুডেন্টের মোট সলভড প্রবলেম
+    const totalSolved = userScores.reduce((sum, s) => sum + s.score, 0);
+    const totalPossibleProblems = labsList.reduce((sum, l) => sum + l.totalProblems, 0);
+
+    // ৫. লিডারবোর্ড (ঐ সেকশনের সব স্টুডেন্টদের জন্য)
+    const allStudents = await User.find({ sectionId: student.sectionId._id });
+    const allScores = await Score.find({ 
+      studentId: { $in: allStudents.map(s => s._id) } 
+    });
+
+    const leaderboard = allStudents.map(s => {
+      const sTotal = allScores
+        .filter(score => score.studentId.toString() === s._id.toString())
+        .reduce((sum, s) => sum + s.score, 0);
+      return { userId: { _id: s._id, name: s.name }, solved_problems: sTotal };
     }).sort((a, b) => b.solved_problems - a.solved_problems);
 
-    // ৬. রেসপন্স পাঠানো
     res.status(200).json({
       success: true,
       result: {
         user: student,
-        user_labs: user_labs, 
+        user_labs,
         all_students_profile_in_this_section: leaderboard,
         total_problems: totalPossibleProblems,
         solved_problems: totalSolved 
@@ -91,3 +85,5 @@ const user_labs = labsList.map(lab => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+

@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 // ES Modules-এ লোকাল ফাইল ইম্পোর্ট করার সময় শেষে .js দেওয়া বাধ্যতামূলক
-import User from '../schemas/UserSchema.js';
+import {User}  from '../schemas/UserSchema.js';
 
 // ১. প্রটেক্ট মিডলওয়্যার (Token Verification)
 export const protect = async (req, res, next) => {
