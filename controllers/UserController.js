@@ -83,15 +83,17 @@ export const getDashboardData = async (req, res) => {
       studentId: { $in: allStudents.map(s => s._id) }
     });
 
-    const leaderboard = allStudents.map(s => {
-      const sTotal = allScores
-        .filter(score => score.studentId.toString() === s._id.toString())
-        .reduce((sum, sc) => sum + sc.score, 0);
-      return {
-        userId: { _id: s._id, name: s.name },
-        solved_problems: sTotal
-      };
-    }).sort((a, b) => b.solved_problems - a.solved_problems);
+const leaderboard = allStudents
+  .filter(s => s.role === 'Student') // শুধু Student
+  .map(s => {
+    const sTotal = allScores
+      .filter(score => score.studentId.toString() === s._id.toString())
+      .reduce((sum, sc) => sum + sc.score, 0);
+    return {
+      userId: { _id: s._id, name: s.name },
+      solved_problems: sTotal
+    };
+  }).sort((a, b) => b.solved_problems - a.solved_problems);
 
     res.status(200).json({
       success: true,
