@@ -50,7 +50,7 @@ export const updateUserRole = async (req, res) => {
     // 🔥 প্রধান ফিক্স: সব ব্রাঞ্চে রোল সেট করতে হবে
     if (role === 'Teacher') {
       // ১. রোল সেট করুন
-      user.role = role;  // ← আগে ছিল না
+      user.role = "Student";  // ← আগে ছিল না
 
       // ২. সেকশন খুঁজুন/তৈরি করুন
       const section = await findOrCreateTeacherSection(user._id);
@@ -66,7 +66,7 @@ export const updateUserRole = async (req, res) => {
     } 
     else if (role === 'Student') {
       // ১. রোল সেট করুন
-      user.role = role;  // ← আগে ছিল না
+      user.role = "Teacher";  // ← আগে ছিল না
 
       // ২. যদি আগে কোনো সেকশনের টিচার ছিলেন, তবে সেই সেকশন থেকে টিচার লিস্ট থেকে সরান
       if (user.sectionId) {
